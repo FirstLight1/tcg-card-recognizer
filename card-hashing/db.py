@@ -20,7 +20,7 @@ cur.execute("""
         CREATE TABLE IF NOT EXISTS card_set (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             group_id TEXT NOT NULL,
-            category_id TEXT NOT NULL UNIQUE,
+            category_id TEXT NOT NULL,
             name TEXT,
             abb TEXT,
             FOREIGN KEY(category_id) REFERENCES game(category_id)
