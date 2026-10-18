@@ -1,5 +1,4 @@
 import requests
-import json
 import sqlite3
 import time
 from pathlib import Path
@@ -17,9 +16,16 @@ session = requests.Session()
 session.headers.update({'User-Agent': "TCG-Card-Recognizer/0.1"})
 user_agents = [
          "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0",
-         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
          ]
+
+def notify(message):
+    try:
+        client.send(message)
+    except Exception as error:
+        print(f"Notification failed: {error}")
+
 
 def get_products(game_id,group_id):
     r = session.get(f"https://tcgcsv.com/tcgplayer/{game_id}/{group_id}/products", timeout=5)
@@ -27,49 +33,53 @@ def get_products(game_id,group_id):
     products = r.json()['results']
     failed = 0
     for product in products:
-        if product['extendedData'][0]['name'] == 'Number':
-            number = next(
-                    (
-                        field['value']
-                        for field in (product.get('extendedData') or [])
-                        if field.get('name') == 'Number'
-                        ),
-                    None,
-                    )
-            if number is None:
-                continue
-            number = number.split('/')[0]
-            for attempt in range(5):
-                    try:
-                        img_url  = product['imageUrl']
-                        img = requests.get(img_url, timeout=5, headers={'User-Agent': random.choice(user_agents)})
-                        img.raise_for_status()
-                        with Image.open(BytesIO(img.content)) as image:
-                            phash = str(imagehash.phash(image.convert('RGB')))
-                        
-                        db.execute("INSERT OR IGNORE INTO card (product_id, name, normalized_name, number, group_id, phash) VALUES (?,?,?,?,?,?)",
-                                  (product['productId'], product['name'], product['cleanName'], number, group_id, phash))
-                        db.commit()
-                        print(f"Inserted {product['name']}")
-                        failed = 0
-                        time.sleep(1)
-                        break
-                    except Exception as e:
-                        if attempt == 4:
-                            client.send(f"Failed to insert {product['name']}")
-                        failed += 1
-                        if failed > 5 and failed < 10:
-                            client.send(f"Last 5 items failed | %s", str(e))
-                        time.sleep(10)
-                        if failed > 10:
-                            client.send('Terminating')
-                            raise Exception('Terminating')
-                        continue
+        number = next(
+            (field.get('value') for field in (product.get('extendedData') or [])
+             if field.get('name') == 'Number'),
+            None,
+        )
+        if not isinstance(number, str) or not number.strip():
+            continue
+        number = number.split('/')[0].strip()
+        for attempt in range(5):
+            try:
+                img_url = product['imageUrl']
+                with requests.get(img_url, timeout=5, headers={'User-Agent': random.choice(user_agents)}) as img:
+                    img.raise_for_status()
+                    with Image.open(BytesIO(img.content)) as image:
+                        phash = str(imagehash.phash(image.convert('RGB')))
+                break
+            except (requests.RequestException, OSError, ValueError) as error:
+                last_error = error
+                if attempt < 4:
+                    time.sleep(10)
+        else:
+            failed += 1
+            notify(f"Failed to process {product['name']}: {last_error}")
+            if failed == 5:
+                notify(f"Last 5 consecutive products failed: {last_error}")
+            if failed >= 10:
+                notify('Terminating: 10 consecutive products failed')
+                raise RuntimeError('10 consecutive products failed') from last_error
+            continue
+
+        cursor = db.execute(
+            "INSERT OR IGNORE INTO card (product_id, name, normalized_name, number, group_id, phash) VALUES (?,?,?,?,?,?)",
+            (product['productId'], product['name'], product['cleanName'], number, group_id, phash),
+        )
+        db.commit()
+        if cursor.rowcount:
+            print(f"Inserted {product['name']}")
+        else:
+            print(f"Skipped {product['name']} (insert ignored)")
+        failed = 0
+        time.sleep(1)
 
 def get_groups():
     games_ids = get_games()
     for game_id in games_ids:
-        r = session.get(f"https://tcgcsv.com/tcgplayer/{game_id}/groups")
+        r = session.get(f"https://tcgcsv.com/tcgplayer/{game_id}/groups", timeout=5)
+        r.raise_for_status()
         all_groups = r.json()['results']
         for group in all_groups:
             db.execute("INSERT OR IGNORE INTO card_set (group_id, category_id, name, abb) VALUES (?,?,?,?)",
@@ -77,11 +87,11 @@ def get_groups():
             db.commit()
             get_products(game_id,group['groupId'])
         time.sleep(5)
-    pass
 
-def get_games() -> tuple:
+def get_games():
     games = db.execute("SELECT category_id FROM game").fetchall()
     game_ids = (game[0] for game in games)
     return game_ids
 
-get_groups()
+if __name__ == '__main__':
+    get_groups()
