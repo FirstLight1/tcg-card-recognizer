@@ -7,8 +7,12 @@ import imagehash
 from io import BytesIO
 import random
 from python_ntfy import NtfyClient
+import dotenv
+import os
 
-client = NtfyClient(server='')
+dotenv.load_dotenv()
+topic = os.getenv('NOTIFICATION_TOPIC')
+client = NtfyClient(topic=topic)
 db_path = Path(__file__).resolve().parent.parent / 'tcg-data.db'
 db = sqlite3.connect(db_path)
 
@@ -31,7 +35,6 @@ def get_products(game_id,group_id):
     r = session.get(f"https://tcgcsv.com/tcgplayer/{game_id}/{group_id}/products", timeout=5)
     r.raise_for_status()
     products = r.json()['results']
-    failed = 0
     for product in products:
         number = next(
             (field.get('value') for field in (product.get('extendedData') or [])
@@ -51,18 +54,10 @@ def get_products(game_id,group_id):
                 break
             except (requests.RequestException, OSError, ValueError) as error:
                 last_error = error
+                notify(f"Failed to process {product['name']}: {last_error}")
                 if attempt < 4:
-                    time.sleep(10)
-        else:
-            failed += 1
-            notify(f"Failed to process {product['name']}: {last_error}")
-            if failed == 5:
-                notify(f"Last 5 consecutive products failed: {last_error}")
-            if failed >= 10:
-                notify('Terminating: 10 consecutive products failed')
-                raise RuntimeError('10 consecutive products failed') from last_error
-            continue
-
+                    time.sleep(3)
+                continue
         cursor = db.execute(
             "INSERT OR IGNORE INTO card (product_id, name, normalized_name, number, group_id, phash) VALUES (?,?,?,?,?,?)",
             (product['productId'], product['name'], product['cleanName'], number, group_id, phash),
@@ -76,17 +71,23 @@ def get_products(game_id,group_id):
         time.sleep(1)
 
 def get_groups():
+    start = time.time()
     games_ids = get_games()
     for game_id in games_ids:
         r = session.get(f"https://tcgcsv.com/tcgplayer/{game_id}/groups", timeout=5)
         r.raise_for_status()
         all_groups = r.json()['results']
         for group in all_groups:
+        #FIX: sets were not saved
             db.execute("INSERT OR IGNORE INTO card_set (group_id, category_id, name, abb) VALUES (?,?,?,?)",
                        (group['groupId'], game_id, group['name'], group['abbreviation']))
             db.commit()
+            print(f"Inserted {group['name']}")
             get_products(game_id,group['groupId'])
         time.sleep(5)
+    finish = time.time() - start
+    notify(f"Finished in {finish:.2f} seconds")
+    
 
 def get_games():
     games = db.execute("SELECT category_id FROM game").fetchall()
@@ -95,3 +96,19 @@ def get_games():
 
 if __name__ == '__main__':
     get_groups()
+    if False:
+        get_products(3,24382)
+        get_products(3,24448)
+        get_products(3,24451)
+        get_products(3,24461)
+        get_products(3,24493)
+        get_products(3,24529)
+        get_products(3,24541)
+        get_products(3,24584)
+        get_products(3,24587)
+        get_products(3,24655)
+        get_products(3,24688)
+        get_products(3,24722)
+        get_products(3,24831)
+        get_products(3,24837)
+        get_products(3,24864)
