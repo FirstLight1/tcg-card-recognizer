@@ -19,7 +19,7 @@ cur.execute("""
 cur.execute("""
         CREATE TABLE IF NOT EXISTS card_set (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            group_id TEXT NOT NULL,
+            group_id TEXT NOT NULL UNIQUE,
             category_id TEXT NOT NULL,
             name TEXT,
             abb TEXT,
@@ -30,7 +30,7 @@ cur.execute("""
 cur.execute("""
         CREATE TABLE IF NOT EXISTS card (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id TEXT NOT NULL,
+            product_id TEXT NOT NULL UNIQUE,
             name TEXT,
             normalized_name TEXT,
             number TEXT,
