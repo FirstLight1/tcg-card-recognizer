@@ -9,6 +9,7 @@ import random
 from python_ntfy import NtfyClient
 import dotenv
 import os
+import unicodedata
 
 dotenv.load_dotenv()
 topic = os.getenv('NOTIFICATION_TOPIC')
@@ -29,6 +30,11 @@ def notify(message):
         client.send(message)
     except Exception as error:
         print(f"Notification failed: {error}")
+
+def normalize(s: str | None) -> str | None:
+    if s is None:
+        return None
+    return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode("ascii").lower()
 
 
 def get_products(game_id,group_id):
@@ -58,9 +64,10 @@ def get_products(game_id,group_id):
                 if attempt < 4:
                     time.sleep(3)
                 continue
+        name = product['name'].split("-")[0].strip()
         cursor = db.execute(
             "INSERT OR IGNORE INTO card (product_id, name, normalized_name, number, group_id, phash) VALUES (?,?,?,?,?,?)",
-            (product['productId'], product['name'], product['cleanName'], number, group_id, phash),
+            (product['productId'], product['name'], normalize(name),number, group_id, phash),
         )
         db.commit()
         if cursor.rowcount:
@@ -86,6 +93,7 @@ def get_groups():
             get_products(game_id,group['groupId'])
         time.sleep(5)
     finish = time.time() - start
+    print(f"Finished in {finish:.2f} seconds")
     notify(f"Finished in {finish:.2f} seconds")
     
 
