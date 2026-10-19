@@ -1,15 +1,16 @@
-import requests
+import os
+import random
 import sqlite3
 import time
-from pathlib import Path
-from PIL import Image
-import imagehash
-from io import BytesIO
-import random
-from python_ntfy import NtfyClient
-import dotenv
-import os
 import unicodedata
+from io import BytesIO
+from pathlib import Path
+
+import dotenv
+import imagehash
+import requests
+from PIL import Image
+from python_ntfy import NtfyClient
 
 dotenv.load_dotenv()
 topic = os.getenv('NOTIFICATION_TOPIC')
@@ -50,6 +51,7 @@ def get_products(game_id,group_id):
         if not isinstance(number, str) or not number.strip():
             continue
         number = number.split('/')[0].strip()
+        phash = None
         for attempt in range(5):
             try:
                 img_url = product['imageUrl']
@@ -59,11 +61,17 @@ def get_products(game_id,group_id):
                         phash = str(imagehash.phash(image.convert('RGB')))
                 break
             except (requests.RequestException, OSError, ValueError) as error:
-                last_error = error
-                notify(f"Failed to process {product['name']}: {last_error}")
+                if isinstance(error, requests.HTTPError) and error.response is not None:
+                    status = error.response.status_code
+                    if status in (403, 404):
+                        print(f"Skipped {product['name']} ({product['productId']}): image unavailable (HTTP {status}): {img_url}")
+                        break
                 if attempt < 4:
                     time.sleep(3)
-                continue
+                else:
+                    notify(f"Failed to process {product['name']} after 5 attempts: {error}")
+        if phash is None:
+            continue
         name = product['name'].split("-")[0].strip()
         cursor = db.execute(
             "INSERT OR IGNORE INTO card (product_id, name, normalized_name, number, group_id, phash) VALUES (?,?,?,?,?,?)",
@@ -74,7 +82,6 @@ def get_products(game_id,group_id):
             print(f"Inserted {product['name']}")
         else:
             print(f"Skipped {product['name']} (insert ignored)")
-        failed = 0
         time.sleep(1)
 
 def get_groups():
