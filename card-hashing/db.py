@@ -40,3 +40,14 @@ cur.execute("""
             );
             """)
 
+cur.execute("""
+            INSERT INTO game (category_id, name) VALUES (3, 'pokemon');
+            """)
+
+cur.execute("""
+            INSERT INTO game (category_id, name) VALUES (68, 'one piece');
+            """)
+
+cur.execute("""
+            INSERT INTO game (category_id, name) VALUES (89, 'riftbound');
+            """)
