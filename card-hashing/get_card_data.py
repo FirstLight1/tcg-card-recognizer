@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import sqlite3
 import time
 import unicodedata
@@ -16,6 +17,7 @@ dotenv.load_dotenv()
 topic = os.getenv('NOTIFICATION_TOPIC')
 client = NtfyClient(topic=topic)
 db_path = Path(__file__).resolve().parent.parent / 'tcg-data.db'
+pokemon_image_dir = Path(os.getenv('POKEMON_IMAGE_DIR', r'D:\pokemon_en_all'))
 db = sqlite3.connect(db_path)
 
 session = requests.Session()
@@ -39,6 +41,11 @@ def normalize(s: str | None) -> str | None:
 
 
 def get_products(game_id,group_id):
+    image_dir = None
+    card_set = db.execute("SELECT name FROM card_set WHERE group_id = ?", (group_id,)).fetchone()
+    set_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', card_set[0]).rstrip(' .') if card_set else ''
+    image_dir = pokemon_image_dir / (f'{group_id}_{set_name}' if set_name else str(group_id))
+    image_dir.mkdir(parents=True, exist_ok=True)
     r = session.get(f"https://tcgcsv.com/tcgplayer/{game_id}/{group_id}/products", timeout=5)
     r.raise_for_status()
     products = r.json()['results']
@@ -58,6 +65,9 @@ def get_products(game_id,group_id):
                 with requests.get(img_url, timeout=5, headers={'User-Agent': random.choice(user_agents)}) as img:
                     img.raise_for_status()
                     with Image.open(BytesIO(img.content)) as image:
+                        if image_dir is not None:
+                            image_path = image_dir / f"{product['productId']}.{image.format.lower()}"
+                            image_path.write_bytes(img.content)
                         phash = str(imagehash.phash(image.convert('RGB')))
                 break
             except (requests.RequestException, OSError, ValueError) as error:
@@ -91,8 +101,10 @@ def get_groups():
         r = session.get(f"https://tcgcsv.com/tcgplayer/{game_id}/groups", timeout=5)
         r.raise_for_status()
         all_groups = r.json()['results']
+        sets = db.execute("SELECT group_id FROM card_set WHERE category_id = ?", (game_id,)).fetchall()
         for group in all_groups:
-        #FIX: sets were not saved
+            if (str(group['groupId']),) in sets:
+                continue
             db.execute("INSERT OR IGNORE INTO card_set (group_id, category_id, name, abb) VALUES (?,?,?,?)",
                        (group['groupId'], game_id, group['name'], group['abbreviation']))
             db.commit()
