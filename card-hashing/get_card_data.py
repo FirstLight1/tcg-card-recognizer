@@ -16,7 +16,7 @@ from python_ntfy import NtfyClient
 dotenv.load_dotenv()
 topic = os.getenv("NOTIFICATION_TOPIC")
 client = NtfyClient(topic=topic)
-db_path = Path(__file__).resolve().parent.parent / "tcg-data.db"
+db_path = Path(__file__).resolve().parent.parent / "src" / "tcg_card_recognizer" / "tcg-data.db"
 pokemon_image_dir = Path(os.getenv("POKEMON_IMAGE_DIR", r"D:\pokemon_en_all"))
 db = sqlite3.connect(db_path)
 

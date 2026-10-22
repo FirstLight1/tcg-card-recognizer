@@ -1,15 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "tcg-card-recognizer"
 version = "0.1.0"
-description = "Add your description here"
+description = "Recognize trading cards using perceptual hashes and a bundled card database"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "dotenv>=0.9.9",
     "imagehash>=4.3.2",
+    "pillow>=11",
+]
+
+[project.optional-dependencies]
+data = [
+    "dotenv>=0.9.9",
     "python-ntfy>=0.11.3",
     "requests>=2.34.2",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tcg_card_recognizer"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/card-hashing", "/tests", "/README.md", "/pyproject.toml"]
 
 [dependency-groups]
 dev = [

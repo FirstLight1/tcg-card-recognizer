@@ -1,1 +1,6 @@
 /card-hashing/.env
+.venv/
+__pycache__/
+*.egg-info/
+/build/
+/dist/

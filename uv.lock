@@ -403,10 +403,15 @@ wheels = [
 [[package]]
 name = "tcg-card-recognizer"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
-    { name = "dotenv" },
     { name = "imagehash" },
+    { name = "pillow" },
+]
+
+[package.optional-dependencies]
+data = [
+    { name = "dotenv" },
     { name = "python-ntfy" },
     { name = "requests" },
 ]
@@ -418,11 +423,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "dotenv", marker = "extra == 'data'", specifier = ">=0.9.9" },
     { name = "imagehash", specifier = ">=4.3.2" },
-    { name = "python-ntfy", specifier = ">=0.11.3" },
-    { name = "requests", specifier = ">=2.34.2" },
+    { name = "pillow", specifier = ">=11" },
+    { name = "python-ntfy", marker = "extra == 'data'", specifier = ">=0.11.3" },
+    { name = "requests", marker = "extra == 'data'", specifier = ">=2.34.2" },
 ]
+provides-extras = ["data"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.17.1" }]
