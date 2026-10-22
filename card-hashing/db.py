@@ -1,7 +1,7 @@
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
-db_path = Path(__file__).resolve().parent.parent / 'tcg-data.db'
+db_path = Path(__file__).resolve().parent.parent / "tcg-data.db"
 con = sqlite3.connect(db_path)
 
 cur = con.cursor()
