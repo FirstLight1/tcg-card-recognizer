@@ -1,7 +1,7 @@
 # TCG Card Recognizer
 
 An importable Python package that matches trading card images against a bundled
-SQLite database using perceptual hashes. Requires Python 3.14 or newer.
+SQLite database using perceptual hashes. Requires Python 3.12 or newer.
 
 ## Installation
 
